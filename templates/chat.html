@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #chat {
+            flex: 1;
+            overflow-y: scroll;
+            padding: 10px;
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: #e1f5fe;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .message.user {
+            background-color: #d1c4e9;
+            margin-left: auto;
+        }
+        .message.deleted {
+            background-color: #ffebee;
+            color: #757575;
+            font-style: italic;
+        }
+        .user-info {
+            font-weight: bold;
+            color: #333;
+        }
+        .timestamp {
+            font-size: 0.8em;
+            color: #757575;
+            margin-top: 5px;
+        }
+        #input-area {
+            display: flex;
+            padding: 10px;
+            background-color: #fff;
+            border-top: 1px solid #ddd;
+        }
+        #message {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #send-button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chat Room</h1>
+    <p>Logged in as: <strong>{{ session.username }}</strong> | <a href="{{ url_for('logout') }}">Logout</a> | <a href="{{ url_for('matchmaking') }}">Matchmaking</a></p>
+    <div id="chat">
+        {% for message in messages %}
+            <div class="message {% if message.split(':')[0].strip() == session.username %}user{% endif %}">
+                <div class="user-info">{{ message.split(':')[0] }}</div>
+                <div class="text">{{ message.split(':')[1] }}</div>
+                <div class="timestamp">6:32 am</div>
+            </div>
+        {% endfor %}
+        <!-- <div class="message deleted">
+            <div class="text">This message was deleted.</div>
+            <div class="timestamp">6:32 am</div>
+        </div> -->
+    </div>
+    <div id="input-area">
+        <input type="text" id="message" placeholder="Type a message..." required>
+        <button id="send-button">Send</button>
+    </div>
+
+    <script>
+        // Connect to the WebSocket server
+        const socket = io();
+
+        // Handle incoming messages
+        socket.on('message', function(data) {
+            const chat = document.getElementById('chat');
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${data.username === '{{ session.username }}' ? 'user' : ''}`;
+            messageElement.innerHTML = `
+                <div class="user-info">${data.username}</div>
+                <div class="text">${data.message}</div>
+                <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+            `;
+            chat.appendChild(messageElement);
+            chat.scrollTop = chat.scrollHeight; // Auto-scroll to the bottom
+        });
+
+        // Handle match notifications
+        socket.on('match_found', function(data) {
+            const chat = document.getElementById('chat');
+            const matchElement = document.createElement('div');
+            matchElement.className = 'match-notification';
+            matchElement.innerHTML = `Match found: <strong>${data.buyer}</strong> wants to buy <strong>${data.product}</strong>, and <strong>${data.seller}</strong> wants to sell <strong>${data.product}</strong>.`;
+            chat.appendChild(matchElement);
+            chat.scrollTop = chat.scrollHeight; // Auto-scroll to the bottom
+        });
+
+        // Function to send a message
+        function sendMessage() {
+            const messageInput = document.getElementById('message');
+            const message = messageInput.value.trim();
+            if (message) {
+                socket.send({ message: message }); // Send message to the server
+                messageInput.value = ''; // Clear the input field
+            }
+        }
+
+        // Send message when the send button is clicked
+        document.getElementById('send-button').addEventListener('click', function(e) {
+            e.preventDefault();
+            sendMessage();
+        });
+
+        // Send message when the Enter key is pressed
+        document.getElementById('message').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
