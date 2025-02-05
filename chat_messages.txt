@@ -8,3 +8,8 @@ ali: hi
 ali: hello
 zain: hi
 zain: yes
+zain: hello
+ali: hi
+zain: I am selling ABC
+ali: I want to buy ABC
+ali: hi
