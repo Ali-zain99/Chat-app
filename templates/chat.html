@@ -73,7 +73,7 @@
 </head>
 <body>
     <h1>Chat Room</h1>
-    <p>Logged in as: <strong>{{ session.username }}</strong> | <a href="{{ url_for('logout') }}">Logout</a> | <a href="{{ url_for('matchmaking') }}">Matchmaking</a></p>
+    <p>Logged in as: <strong>{{ session.username }}</strong> | <a href="{{ url_for('logout') }}">Logout</a> </p>
     <div id="chat">
         {% for message in messages %}
             <div class="message {% if message.split(':')[0].strip() == session.username %}user{% endif %}">
@@ -96,52 +96,44 @@
         // Connect to the WebSocket server
         const socket = io();
 
-        // Handle incoming messages
+            // Handle incoming messages and notifications
         socket.on('message', function(data) {
-            const chat = document.getElementById('chat');
-            const messageElement = document.createElement('div');
+            var chatBox = document.getElementById("chat");
+            var messageElement = document.createElement("div");
             messageElement.className = `message ${data.username === '{{ session.username }}' ? 'user' : ''}`;
             messageElement.innerHTML = `
                 <div class="user-info">${data.username}</div>
                 <div class="text">${data.message}</div>
                 <div class="timestamp">${new Date().toLocaleTimeString()}</div>
             `;
-            chat.appendChild(messageElement);
-            chat.scrollTop = chat.scrollHeight; // Auto-scroll to the bottom
+            chatBox.appendChild(messageElement);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll to the bottom
         });
 
-        // Handle match notifications
-        socket.on('match_found', function(data) {
-            const chat = document.getElementById('chat');
-            const matchElement = document.createElement('div');
-            matchElement.className = 'match-notification';
-            matchElement.innerHTML = `Match found: <strong>${data.buyer}</strong> wants to buy <strong>${data.product}</strong>, and <strong>${data.seller}</strong> wants to sell <strong>${data.product}</strong>.`;
-            chat.appendChild(matchElement);
-            chat.scrollTop = chat.scrollHeight; // Auto-scroll to the bottom
+    // Listen for notifications
+        socket.on('notification', function(data) {
+            alert(data.notification_message);  // Show popup notification
+            var chatBox = document.getElementById("chat");
+            var notificationElement = document.createElement("div");
+            notificationElement.className = "message deleted";
+            notificationElement.innerHTML = `<div class="text"><strong>System:</strong> ${data.notification_message}</div>`;
+            chatBox.appendChild(notificationElement);
+            chatBox.scrollTop = chatBox.scrollHeight; // Auto-scroll
         });
 
-        // Function to send a message
         function sendMessage() {
-            const messageInput = document.getElementById('message');
-            const message = messageInput.value.trim();
+            var messageInput = document.getElementById('message');
+            var message = messageInput.value.trim();
             if (message) {
-                socket.send({ message: message }); // Send message to the server
-                messageInput.value = ''; // Clear the input field
+                socket.emit('message', { message: message });
+                messageInput.value = ''; // Clear input field
             }
         }
 
         // Send message when the send button is clicked
-        document.getElementById('send-button').addEventListener('click', function(e) {
-            e.preventDefault();
-            sendMessage();
-        });
-
-        // Send message when the Enter key is pressed
+        document.getElementById('send-button').addEventListener('click', sendMessage);
         document.getElementById('message').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            }
+            if (e.key === 'Enter') sendMessage();
         });
     </script>
 </body>
