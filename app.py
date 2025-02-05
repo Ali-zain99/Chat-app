@@ -4,6 +4,8 @@ from flask_socketio import SocketIO, send, emit
 import os
 import re
 from nltk.tokenize import word_tokenize
+from flask_socketio import emit, join_room
+
 from nltk.corpus import stopwords
 import nltk
 
@@ -15,7 +17,7 @@ nltk.data.path.append(nltk_data_dir)
 nltk.download('punkt', download_dir=nltk_data_dir)
 import re
 nltk.download('stopwords', download_dir=nltk_data_dir)
-
+user_sessions = {}
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Required for session management
 socketio = SocketIO(app,cors_allowed_origins="*")
@@ -74,15 +76,6 @@ def logout():
     session.pop('username', None)  # Remove username from session
     return redirect(url_for('login'))
 
-@app.route('/get_notifications')
-def get_notifications():
-    # Simulate fetching a notification (you can replace this with actual logic)
-    buyer_username = "buyer_user"
-    seller_username = "ali"
-    product_name = "ABC"
-    return notify_user(buyer_username, seller_username, product_name)
-
-# WebSocket event for receiving and broadcasting messages
 @socketio.on('message')
 def handle_message(data):
     username = session.get('username')
@@ -95,7 +88,17 @@ def handle_message(data):
     # Broadcast the message to all connected clients
     emit('message', {'username': username, 'message': message}, broadcast=True)
     process_latest_message()
+@socketio.on('connect')
+def handle_connect():
+    """Store the session ID when a user connects."""
+    if 'username' in session:
+        user_sessions[session['username']] = request.sid  # Store session ID for the user
 
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Remove the session ID when a user disconnects."""
+    if 'username' in session:
+        user_sessions.pop(session['username'], None)  # Remove session ID
 
 def process_latest_message():
     # Read the latest message from chat_messages.txt
@@ -115,14 +118,14 @@ def process_latest_message():
         if product_name:
             with open("buy_product.txt", "a") as buy_file:
                 buy_file.write(f"{username}: {product_name}\n")
-            match_making(product_name, username)
+            match_making(product_name, username,"sell")
 
     elif "sell" in message.lower():
         product_name = extract_product_name(message)
         if product_name:
             with open("sell_product.txt", "a") as sell_file:
                 sell_file.write(f"{username}: {product_name}\n")
-            match_making(product_name, username)
+            match_making(product_name, username,"buy")
 
 def extract_product_name(message):
     # Use regex to extract the product name from the message
@@ -131,44 +134,35 @@ def extract_product_name(message):
         return match.group(2)
     return None
 
-def match_making(product_name, username):
+def match_making(product_name, username,task):
     # Check if product is available for sale
-    with open("sell_product.txt", "r") as sell_file:
-        for line in sell_file:
-            line = line.strip()
-            if not line or ": " not in line:
-                continue  # Skip empty or malformed lines
+    if task=="sell":
+        with open("sell_product.txt", "r") as sell_file:
+            for line in sell_file:
+                line = line.strip()
+                if not line or ": " not in line:
+                    continue  # Skip empty or malformed lines
 
-            try:
-                seller_username, sell_product = line.split(": ", 1)
-                if sell_product.lower() == product_name.lower():
-                    notify_user(username, seller_username, product_name)
-                    return
-            except ValueError:
-                print(f"Skipping malformed line: {line}") 
-
-    # # Check if someone wants to buy the product
-    # with open("buy_product.txt", "r") as buy_file:
-    #     for line in buy_file:
-    #         line = line.strip()
-    #         if not line or ": " not in line:
-    #             continue  # Skip empty or malformed lines
-
-    #         try:
-    #             buyer_username, buy_product = line.split(": ", 1)
-    #             if buy_product.lower() == product_name.lower():
-    #                 notify_user(buyer_username, username, product_name)
-    #                 return
-    #         except ValueError:
-    #             print(f"Skipping malformed line: {line}") 
-
-# def notify_user(buyer_username, seller_username, product_name):
-#     # Send a notification to the buyer
-#     notification_message = f"Notification: {seller_username} is selling {product_name}. You can contact them to buy it."
-    
-#     # Append the notification to the chat_messages.txt file
-#     with open("chat_messages.txt", "a") as chat_file:
-#         chat_file.write(f"System: {notification_message}\n")
+                try:
+                    seller_username, sell_product = line.split(": ", 1)
+                    if sell_product.lower() == product_name.lower():
+                        notify_user(username, seller_username, product_name)
+                        return
+                except ValueError:
+                    print(f"Skipping malformed line: {line}") 
+    else:
+        with open("buy_product.txt", "r") as buy_file:
+            for line in buy_file:
+                line = line.strip()
+                if not line or ": " not in line:
+                    continue
+                try:
+                    buyer_username, buy_product = line.split(": ", 1)
+                    if buy_product.lower() == product_name.lower():
+                        notify_user(buyer_username, username, product_name)
+                        return
+                except ValueError:
+                    print(f"Skipping malformed line: {line}")
 
 def notify_user(buyer_username, seller_username, product_name):
     notification_message = f"Notification: {seller_username} is selling {product_name}. You can contact them to buy it."
@@ -176,16 +170,19 @@ def notify_user(buyer_username, seller_username, product_name):
     # Append the notification to chat_messages.txt
     with open("chat_messages.txt", "a") as chat_file:
         chat_file.write(f"System: {notification_message}\n")
-
+    if buyer_username in user_sessions:
+        buyer_sid = user_sessions[buyer_username] 
+        print("buyer_sid ",buyer_sid)
     # Emit notification via WebSocket
-    emit('notification', {
-        "buyer_username": buyer_username,
-        "seller_username": seller_username,
-        "product_name": product_name,
-        "notification_message": notification_message
-    }, broadcast=True)
+        emit('notification', {
+            "buyer_username": buyer_username,
+            "seller_username": seller_username,
+            "product_name": product_name,
+            "notification_message": notification_message
+        }, room=buyer_sid)
+    else:
+        print(f"Buyer {buyer_username} is not online. Notification not sent.")
     
-    # You can also implement additional notification mechanisms here (e.g., email, push notification)
 
 
 

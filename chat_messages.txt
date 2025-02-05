@@ -1,6 +1,13 @@
-ali: I want to buy ABC
-ali: I want to sell ABC
-System: Notification: ali is selling ABC. You can contact them to buy it.
-zain: I want to buy def
-ali: I want to sell def
-System: Notification: ali is selling def. You can contact them to buy it.
+fahad: hi
+fahad: i want to sell pen
+zain: hello
+zain: ok
+ali: i want to buy pen
+System: Notification: fahad is selling pen. You can contact them to buy it.
+zain: i want to sell laptop
+ali: hello
+ali: hi
+ali: I want to buy laptop
+System: Notification: zain is selling laptop. You can contact them to buy it.
+fahad: I want to buy laptop
+System: Notification: zain is selling laptop. You can contact them to buy it.
